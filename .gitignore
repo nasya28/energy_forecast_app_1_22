@@ -1,0 +1,38 @@
+# Исключаем виртуальное окружение
+venv/
+backend/venv/
+
+# Python-файлы
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Временные и лог-файлы
+*.log
+*.tmp
+*.swp
+
+# Файлы IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Артефакты сборки
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Кэш pip
+pip-wheel-metadata/
+*.egg
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Мусор от ОС
+.DS_Store
+Thumbs.db
