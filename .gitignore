@@ -9,6 +9,10 @@ __pycache__/
 *.pyd
 *.so
 
+venv/
+backend/venv/
+
+
 # Временные и лог-файлы
 *.log
 *.tmp
