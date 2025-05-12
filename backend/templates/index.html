@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Forecast Visualization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Montserrat', Arial, sans-serif;
+            background: linear-gradient(120deg, #f8fafc 0%, #e0e7ef 100%);
+            min-height: 100vh;
+        }
+        .header {
+            background: #2b4162;
+            color: #fff;
+            padding: 32px 0 16px 0;
+            text-align: center;
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 8px rgba(44,62,80,0.07);
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 32px 0 24px 0;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        select, button {
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: 1px solid #bfc9d9;
+            background: #fff;
+            transition: box-shadow 0.2s;
+        }
+        select:focus, button:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #2b4162;
+        }
+        button {
+            background: #2b4162;
+            color: #fff;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #324a6d;
+        }
+        .img-container {
+            width: 95vw;
+            max-width: 1100px;
+            margin: 0 auto 32px auto;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(44,62,80,0.08);
+            padding: 32px 18px 24px 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #matplotlibImage img, #plot3dImage img {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(44,62,80,0.07);
+            margin-top: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #2b4162;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .download-btn {
+            margin-top: 12px;
+            margin-bottom: 4px;
+            background: #fff;
+            color: #2b4162;
+            border: 2px solid #2b4162;
+            font-weight: 600;
+            transition: background 0.2s, color 0.2s;
+        }
+        .download-btn:hover {
+            background: #2b4162;
+            color: #fff;
+        }
+        @media (max-width: 700px) {
+            .header { font-size: 1.2rem; padding: 18px 0 8px 0; }
+            .controls { flex-direction: column; gap: 10px; margin: 18px 0 12px 0; }
+            .img-container { padding: 12px 2vw 8px 2vw; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        Прогноз потребления энергоресурсов по видам топлива
+    </div>
+    <div class="controls">
+        <select id="fuelType">
+            <option value="">Выберите вид топлива</option>
+        </select>
+        <button onclick="loadForecasts()">Показать прогноз</button>
+    </div>
+    <div class="img-container">
+        <div class="subtitle">2D-график по видам топлива</div>
+        <div id="matplotlibImage"></div>
+        <button class="download-btn" onclick="downloadImage('matplotlibImage', '2d-graph.png')">Скачать 2D-график</button>
+        <div id="fuelMetricsTable"></div>
+    </div>
+    <div class="controls">
+        <select id="modelType">
+            <option value="ARIMA">ARIMA</option>
+            <option value="Linear Regression">Linear Regression</option>
+            <option value="Random Forest">Random Forest</option>
+            <option value="LSTM">LSTM</option>
+        </select>
+        <button onclick="load3DPlot()">Показать 3D-график</button>
+    </div>
+    <div class="img-container">
+        <div class="subtitle">3D-график по моделям</div>
+        <div id="plot3dImage"></div>
+        <button class="download-btn" onclick="downloadImage('plot3dImage', '3d-graph.png')">Скачать 3D-график</button>
+    </div>
+    <div class="img-container">
+        <div class="subtitle">Метрики моделей (MAE, RMSE)</div>
+        <div id="metricsTable"></div>
+    </div>
+    <script>
+        async function loadForecasts() {
+            const fuelType = document.getElementById('fuelType').value;
+            if (!fuelType) {
+                alert('Пожалуйста, выберите вид топлива');
+                return;
+            }
+            document.getElementById('matplotlibImage').innerHTML =
+                `<img src="/plot?fuel=${encodeURIComponent(fuelType)}" alt="Matplotlib Graph">`;
+            await loadFuelMetrics(fuelType);
+        }
+        async function load3DPlot() {
+            const modelType = document.getElementById('modelType').value;
+            document.getElementById('plot3dImage').innerHTML =
+                `<img src="/plot3d?model=${encodeURIComponent(modelType)}" alt="3D Graph">`;
+        }
+        function downloadImage(divId, filename) {
+            const img = document.getElementById(divId).querySelector('img');
+            if (img) {
+                const link = document.createElement('a');
+                link.href = img.src;
+                link.download = filename;
+                link.click();
+            }
+        }
+        async function initializeSelects() {
+            const response = await fetch('/api/forecasts');
+            const forecasts = await response.json();
+            const fuelTypes = [...new Set(forecasts.map(f => f.fuel_type))];
+            const fuelSelect = document.getElementById('fuelType');
+            fuelTypes.forEach(fuel => {
+                const option = document.createElement('option');
+                option.value = fuel;
+                option.textContent = fuel;
+                fuelSelect.appendChild(option);
+            });
+        }
+        async function loadFuelMetrics(fuelType) {
+            if (!fuelType) {
+                document.getElementById('fuelMetricsTable').innerHTML = '';
+                return;
+            }
+            let url = '/api/metrics/latest?fuel_type=' + encodeURIComponent(fuelType);
+            const response = await fetch(url);
+            const metrics = await response.json();
+            if (!metrics.length) {
+                document.getElementById('fuelMetricsTable').innerHTML = '<p>Нет метрик для выбранного топлива.</p>';
+                return;
+            }
+            let html = '<div class="subtitle" style="margin-top:20px;">Метрики для выбранного топлива</div>';
+            html += '<table style="width:100%;border-collapse:collapse;text-align:center;font-size:1.05rem;background:#f8fafc;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(44,62,80,0.07);">';
+            html += '<tr style="background:#e0e7ef;font-weight:700;">'
+                +'<th>Топливо</th><th>Модель</th><th>MAE</th><th>RMSE</th><th>Дата</th></tr>';
+            metrics.forEach((m, idx) => {
+                html += `<tr style="background:${idx%2===0?'#fff':'#f3f6fa'};">`
+                    +`<td>${m.fuel_type}</td>`
+                    +`<td>${m.model_name}</td>`
+                    +`<td>${m.mae.toFixed(4)}</td>`
+                    +`<td>${m.rmse.toFixed(4)}</td>`
+                    +`<td>${m.created_at}</td>`
+                +'</tr>';
+            });
+            html += '</table>';
+            document.getElementById('fuelMetricsTable').innerHTML = html;
+        }
+        async function loadMetrics(fuelType = '') {
+            let url = '/api/metrics';
+            if (fuelType) url += '?fuel_type=' + encodeURIComponent(fuelType);
+            const response = await fetch(url);
+            const metrics = await response.json();
+            if (!metrics.length) {
+                document.getElementById('metricsTable').innerHTML = '<p>Нет сохранённых метрик.</p>';
+                return;
+            }
+            let html = '<table style="width:100%;border-collapse:collapse;text-align:center;">';
+            html += '<tr><th>Топливо</th><th>Модель</th><th>MAE</th><th>RMSE</th><th>Дата</th></tr>';
+            metrics.forEach(m => {
+                html += `<tr>
+                    <td>${m.fuel_type}</td>
+                    <td>${m.model_name}</td>
+                    <td>${m.mae.toFixed(4)}</td>
+                    <td>${m.rmse.toFixed(4)}</td>
+                    <td>${m.created_at}</td>
+                </tr>`;
+            });
+            html += '</table>';
+            document.getElementById('metricsTable').innerHTML = html;
+        }
+        window.onload = function() {
+            initializeSelects();
+            loadMetrics();
+        };
+    </script>
+</body>
+</html> 
